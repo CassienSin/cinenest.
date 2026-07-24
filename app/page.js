@@ -1,0 +1,285 @@
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import Link from "next/link";
+import LivePartyBar from "@/components/LivePartyBar";
+
+function timeLeft(position, duration) {
+  if (!duration) return null;
+  const left = Math.max(0, duration - position);
+  const h = Math.floor(left / 3600);
+  const m = Math.round((left % 3600) / 60);
+  return h ? `${h}H ${m}M LEFT` : `${m} MIN LEFT`;
+}
+
+export default async function HomePage() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("username, display_name, is_admin")
+    .eq("id", user.id)
+    .single();
+
+  // in-progress watches
+  const { data: progressRows } = await supabase
+    .from("watch_progress")
+    .select(
+      "position_seconds, duration_seconds, updated_at, titles(id, name, kind, year, poster_url, backdrop_url), episodes(id, episode_number, name, still_url)"
+    )
+    .eq("user_id", user.id)
+    .eq("completed", false)
+    .gt("position_seconds", 10)
+    .order("updated_at", { ascending: false })
+    .limit(6);
+
+  const continueList = (progressRows || []).filter((r) => r.titles);
+
+  // newest in the library
+  const { data: recent } = await supabase
+    .from("titles")
+    .select("id, name, kind, year, poster_url, backdrop_url")
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  const recentList = recent || [];
+
+  // hero = what you were last watching, else newest title
+  const heroProgress = continueList[0] || null;
+  const hero = heroProgress?.titles || recentList[0] || null;
+
+  const heroHref = hero
+    ? heroProgress?.episodes
+      ? `/watch/${hero.id}?ep=${heroProgress.episodes.id}`
+      : `/title/${hero.id}`
+    : null;
+
+  async function signOut() {
+    "use server";
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+    revalidatePath("/", "layout");
+    redirect("/login");
+  }
+
+  const name = profile?.display_name || profile?.username || "member";
+
+  return (
+    <main className="relative min-h-screen overflow-hidden">
+      <div className="cn-bloom" />
+      <div className="cn-grain" />
+
+      <div className="relative z-10">
+        {/* nav */}
+        <nav className="grid grid-cols-[1.2fr_1fr_1fr_1fr] border-b border-line text-[13px]">
+          <div className="border-r border-line px-5 py-3.5 font-semibold tracking-[-0.3px]">
+            cinenest<span className="text-marquee">.</span>
+          </div>
+          <div className="border-r border-line px-5 py-3.5">home</div>
+          <Link href="/library" className="border-r border-line px-5 py-3.5 text-muted transition-colors hover:text-text">
+            library
+          </Link>
+          <div className="flex items-center justify-between px-5 py-3.5 text-muted">
+            {profile?.username}
+            <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#2A3341] text-[10px] text-text">
+              {name.charAt(0).toUpperCase()}
+            </span>
+          </div>
+        </nav>
+
+        {/* hero */}
+        {hero ? (
+          <section className="relative border-b border-line">
+            {hero.backdrop_url && (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={hero.backdrop_url}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover opacity-25"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/85 to-ink/50" />
+              </>
+            )}
+
+            <div className="relative px-5 py-12 md:py-16">
+              <div className="cn-rise font-mono text-[11px] tracking-[0.2em] text-muted">
+                001 — {heroProgress ? "CONTINUE WATCHING" : "NOW SHOWING"}
+              </div>
+
+              <h1
+                className="cn-rise mt-3 max-w-2xl text-[34px] font-semibold leading-[1.05] tracking-[-1.2px] md:text-[40px]"
+                style={{ animationDelay: "0.1s" }}
+              >
+                {hero.name}
+              </h1>
+
+              <div
+                className="cn-rise mt-3 font-mono text-[11px] tracking-[0.1em] text-muted"
+                style={{ animationDelay: "0.18s" }}
+              >
+                {heroProgress?.episodes
+                  ? `E${String(heroProgress.episodes.episode_number).padStart(2, "0")} · `
+                  : ""}
+                {hero.kind.toUpperCase()}
+                {hero.year ? ` · ${hero.year}` : ""}
+                {heroProgress
+                  ? ` · ${timeLeft(heroProgress.position_seconds, heroProgress.duration_seconds) || ""}`
+                  : ""}
+              </div>
+
+              <div
+                className="cn-rise mt-7 flex flex-wrap items-center gap-3"
+                style={{ animationDelay: "0.26s" }}
+              >
+                <Link
+                  href={heroHref}
+                  className="rounded-[4px] bg-marquee px-5 py-3 text-[13px] font-semibold text-marquee-ink transition-all duration-500 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-8px_rgba(229,168,61,0.55)]"
+                  style={{ transitionTimingFunction: "var(--ease-cine)" }}
+                >
+                  ▶ {heroProgress ? "Resume" : "Open"}
+                </Link>
+                <Link
+                  href={`/title/${hero.id}`}
+                  className="rounded-[4px] border border-line-strong px-5 py-3 text-[13px] transition-all duration-500 hover:-translate-y-0.5 hover:border-muted hover:bg-white/[0.03]"
+                  style={{ transitionTimingFunction: "var(--ease-cine)" }}
+                >
+                  Details
+                </Link>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="border-b border-line px-5 py-16 text-center">
+            <div className="font-mono text-[11px] tracking-[0.2em] text-muted">
+              THE NEST IS EMPTY
+            </div>
+            {profile?.is_admin && (
+              <Link
+                href="/admin/add"
+                className="mt-5 inline-block rounded-[4px] bg-marquee px-5 py-3 text-[13px] font-semibold text-marquee-ink"
+              >
+                Add your first title
+              </Link>
+            )}
+          </section>
+        )}
+
+        {/* live parties */}
+        <LivePartyBar meId={user.id} />
+
+        {/* continue watching */}
+        {continueList.length > 0 && (
+          <section className="border-b border-line">
+            <div className="px-5 py-4 text-[14px] font-medium">Continue watching</div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {continueList.map((row, i) => {
+                const t = row.titles;
+                const ep = row.episodes;
+                const pct = row.duration_seconds
+                  ? Math.min(100, (row.position_seconds / row.duration_seconds) * 100)
+                  : 0;
+                const still = ep?.still_url || t.backdrop_url;
+
+                return (
+                  <Link
+                    key={`${t.id}-${ep?.id || "film"}`}
+                    href={ep ? `/watch/${t.id}?ep=${ep.id}` : `/watch/${t.id}`}
+                    className="cn-card cn-rise border-b border-r border-line p-4 transition-colors duration-400 hover:bg-white/[0.022]"
+                    style={{ animationDelay: `${i * 0.06}s` }}
+                  >
+                    <div className="font-mono text-[10px] text-faint">
+                      {String(i + 2).padStart(3, "0")}
+                    </div>
+
+                    <div className="mt-2 aspect-video overflow-hidden rounded-[4px] bg-raised">
+                      {still ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={still} alt="" className="cn-card-img h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center font-mono text-[10px] text-faint">
+                          NO STILL
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-0.5 h-[2px] bg-line">
+                      <div className="h-[2px] bg-marquee" style={{ width: `${pct}%` }} />
+                    </div>
+
+                    <div className="mt-2 text-[13px] font-medium">{t.name}</div>
+                    <div className="mt-1 font-mono text-[10px] text-muted">
+                      {ep ? `E${String(ep.episode_number).padStart(2, "0")} · ` : ""}
+                      {timeLeft(row.position_seconds, row.duration_seconds) || "IN PROGRESS"}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* recently added */}
+        {recentList.length > 0 && (
+          <section>
+            <div className="flex items-baseline justify-between px-5 py-4">
+              <span className="text-[14px] font-medium">Recently added</span>
+              <Link href="/library" className="font-mono text-[10px] tracking-[0.12em] text-marquee transition-opacity hover:opacity-70">
+                SEE ALL →
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
+              {recentList.map((t, i) => (
+                <Link
+                  key={t.id}
+                  href={`/title/${t.id}`}
+                  className="cn-card cn-rise border-b border-r border-line p-4"
+                  style={{ animationDelay: `${Math.min(i, 10) * 0.04}s` }}
+                >
+                  <div className="mb-3 aspect-[2/3] overflow-hidden rounded-[4px] bg-raised">
+                    {t.poster_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={t.poster_url} alt={t.name} className="cn-card-img h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center font-mono text-[10px] text-faint">
+                        NO POSTER
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-[13px] font-medium leading-tight">{t.name}</div>
+                  <div className="mt-1 font-mono text-[10px] text-muted">
+                    {t.kind.toUpperCase()}
+                    {t.year ? ` · ${t.year}` : ""}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* footer */}
+        <div className="flex items-center justify-between border-t border-line px-5 py-4">
+          <span className="font-mono text-[10px] tracking-[0.15em] text-faint">
+            CINENEST © 2026
+          </span>
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="font-mono text-[10px] tracking-[0.12em] text-muted transition-colors hover:text-text"
+            >
+              SIGN OUT
+            </button>
+          </form>
+        </div>
+      </div>
+    </main>
+  );
+}
