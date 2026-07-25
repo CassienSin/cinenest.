@@ -21,6 +21,8 @@ export default function PartyPage() {
   const [voiceOn, setVoiceOn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [episodes, setEpisodes] = useState([]);
+  const [showEpisodes, setShowEpisodes] = useState(false);
 
   const videoRef = useRef(null);
   const chatEndRef = useRef(null);
@@ -73,6 +75,18 @@ export default function PartyPage() {
       setMe(profile);
       setParty(partyRow);
       setSrc(videoUrl);
+
+      // load all episodes with video, for the host's picker
+      if (partyRow.titles?.kind !== "film") {
+        const { data: eps } = await supabase
+          .from("episodes")
+          .select("id, episode_number, name, video_url, seasons(season_number)")
+          .eq("title_id", partyRow.title_id)
+          .not("video_url", "is", null)
+          .order("episode_number");
+        if (active) setEpisodes(eps || []);
+      }
+
       setLoading(false);
     }
 
@@ -98,9 +112,16 @@ export default function PartyPage() {
         },
         (payload) => {
           const next = payload.new;
-          setParty((prev) => ({ ...prev, ...next }));
 
-          // The host drives — it never applies state to itself.
+          // Did the episode change? Everyone (including host) reloads the source.
+          setParty((prev) => {
+            if (prev && next.episode_id !== prev.episode_id) {
+              const ep = episodes.find((e) => e.id === next.episode_id);
+              if (ep?.video_url) setSrc(ep.video_url);
+            }
+            return { ...prev, ...next };
+          });
+
           if (isHost) return;
           applyRemoteState(next);
         }
@@ -120,7 +141,7 @@ export default function PartyPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [party?.id, me?.id, isHost]);
+  }, [party?.id, me?.id, isHost, episodes]);
 
   // ── presence: who's in the room ──
   useEffect(() => {
@@ -285,6 +306,20 @@ export default function PartyPage() {
     });
   }
 
+  async function changeEpisode(episodeId) {
+    setShowEpisodes(false);
+    await fetch("/api/party/episode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ partyId, episodeId }),
+    });
+  }
+
+  // find current + next episode
+  const currentEpId = party?.episode_id;
+  const currentIndex = episodes.findIndex((e) => e.id === currentEpId);
+  const nextEpisode = currentIndex >= 0 ? episodes[currentIndex + 1] : null;
+
   async function endParty() {
     if (isHost) {
       await supabase.from("parties").delete().eq("id", partyId);
@@ -352,12 +387,61 @@ export default function PartyPage() {
           )}
 
           <div className="mt-5">
-            <h1 className="text-[20px] font-semibold tracking-[-0.5px]">{heading}</h1>
-            <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-faint">
-              {isHost
-                ? "YOU'RE HOSTING · YOUR CONTROLS SYNC TO EVERYONE"
-                : "THE HOST CONTROLS PLAYBACK"}
-            </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-[20px] font-semibold tracking-[-0.5px]">{heading}</h1>
+                <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-faint">
+                  {isHost
+                    ? "YOU'RE HOSTING · YOUR CONTROLS SYNC TO EVERYONE"
+                    : "THE HOST CONTROLS PLAYBACK"}
+                </p>
+              </div>
+
+              {/* host-only episode controls */}
+              {isHost && episodes.length > 0 && (
+                <div className="flex shrink-0 items-center gap-2">
+                  {nextEpisode && (
+                    <button
+                      onClick={() => changeEpisode(nextEpisode.id)}
+                      className="rounded-[4px] bg-marquee px-4 py-2 text-[12px] font-semibold text-marquee-ink transition-all duration-500 hover:-translate-y-0.5"
+                      style={{ transitionTimingFunction: "var(--ease-cine)" }}
+                    >
+                      Next ▶
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowEpisodes((v) => !v)}
+                    className="rounded-[4px] border border-line-strong px-4 py-2 text-[12px] transition-colors hover:border-muted"
+                  >
+                    Episodes
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* episode picker dropdown */}
+            {isHost && showEpisodes && (
+              <div className="mt-3 max-h-64 overflow-y-auto rounded-[8px] border border-line">
+                {episodes.map((ep) => (
+                  <button
+                    key={ep.id}
+                    onClick={() => changeEpisode(ep.id)}
+                    className={`flex w-full items-center gap-3 border-b border-line px-4 py-2.5 text-left text-[13px] transition-colors last:border-b-0 hover:bg-white/[0.03] ${
+                      ep.id === currentEpId ? "text-marquee" : ""
+                    }`}
+                  >
+                    <span className="font-mono text-[10px] text-faint">
+                      S{String(ep.seasons?.season_number ?? 1).padStart(2, "0")}E
+                      {String(ep.episode_number).padStart(2, "0")}
+                    </span>
+                    <span className="truncate">{ep.name || `Episode ${ep.episode_number}`}</span>
+                    {ep.id === currentEpId && (
+                      <span className="ml-auto font-mono text-[9px] tracking-[0.1em]">NOW</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
