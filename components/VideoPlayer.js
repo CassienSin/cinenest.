@@ -144,7 +144,7 @@ export default function VideoPlayer({
       if (onPlayStateChange) onPlayStateChange(false, video.currentTime);
     };
     const onEnded = () => {
-      saveProgress(video.duration, video.duration);
+      if (!disableProgressSave) saveProgress(video.duration, video.duration);
       if (nextHref) router.push(nextHref);
     };
 
@@ -154,7 +154,9 @@ export default function VideoPlayer({
     video.addEventListener("pause", onPause);
     video.addEventListener("ended", onEnded);
 
-    const onLeave = () => saveProgress(video.currentTime, video.duration, true);
+    const onLeave = () => {
+      if (!disableProgressSave) saveProgress(video.currentTime, video.duration, true);
+    };
     window.addEventListener("beforeunload", onLeave);
 
     return () => {
@@ -166,7 +168,7 @@ export default function VideoPlayer({
       window.removeEventListener("beforeunload", onLeave);
       onLeave();
     };
-  }, [saveProgress, nextHref, router]);
+  }, [saveProgress, nextHref, router, disableProgressSave]);
 
   // ── fullscreen state ──
   useEffect(() => {
@@ -321,21 +323,22 @@ export default function VideoPlayer({
 
       {/* controls */}
       <div
-        className="absolute inset-x-3 bottom-3 rounded-[10px] border border-white/10 bg-ink/60 px-4 pb-3 pt-3 backdrop-blur-xl transition-all duration-500"
+        className="absolute inset-x-2 bottom-2 rounded-[12px] border border-white/10 bg-ink/55 px-3 pb-2.5 pt-2.5 backdrop-blur-2xl transition-all duration-500 sm:inset-x-3 sm:bottom-3 sm:px-4"
         style={{
           transitionTimingFunction: "var(--ease-cine)",
           opacity: showControls ? 1 : 0,
           transform: showControls ? "none" : "translateY(12px)",
           pointerEvents: showControls ? "auto" : "none",
+          boxShadow: showControls ? "0 12px 40px -12px rgba(0,0,0,0.7)" : "none",
         }}
       >
         {/* scrubber */}
         <div
           onClick={handleSeek}
-          className="group relative mb-3 h-[3px] cursor-pointer rounded-full bg-white/15"
+          className="group relative mb-3 h-[4px] cursor-pointer rounded-full bg-white/15"
         >
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-white/25"
+            className="absolute inset-y-0 left-0 rounded-full bg-white/20"
             style={{ width: `${bufPct}%` }}
           />
           <div
@@ -343,26 +346,35 @@ export default function VideoPlayer({
             style={{ width: `${pct}%` }}
           />
           <div
-            className="absolute top-1/2 h-[11px] w-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-marquee shadow-[0_0_0_4px_rgba(229,168,61,0.18)] transition-transform duration-300 group-hover:scale-125"
+            className="absolute top-1/2 h-[13px] w-[13px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-marquee opacity-0 shadow-[0_0_0_4px_rgba(229,168,61,0.2)] transition-all duration-300 group-hover:opacity-100"
             style={{ left: `${pct}%` }}
           />
         </div>
 
         {/* buttons */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => skip(-10)} className="text-[15px] opacity-80 transition hover:opacity-100" aria-label="Back 10 seconds">
+        <div className="flex items-center justify-between gap-2">
+          {/* left cluster */}
+          <div className="flex items-center gap-1 sm:gap-3">
+            <button onClick={() => skip(-10)} className="flex h-8 w-8 items-center justify-center rounded-full text-[14px] opacity-75 transition-all duration-300 hover:bg-white/10 hover:opacity-100" aria-label="Back 10 seconds">
               ⏪
             </button>
-            <button onClick={togglePlay} className="text-[20px] text-marquee" aria-label={playing ? "Pause" : "Play"}>
+            <button onClick={togglePlay} className="flex h-9 w-9 items-center justify-center rounded-full bg-marquee text-[16px] text-marquee-ink transition-transform duration-300 hover:scale-105" style={{ transitionTimingFunction: "var(--ease-cine)" }} aria-label={playing ? "Pause" : "Play"}>
               {playing ? "⏸" : "▶"}
             </button>
-            <button onClick={() => skip(10)} className="text-[15px] opacity-80 transition hover:opacity-100" aria-label="Forward 10 seconds">
+            <button onClick={() => skip(10)} className="flex h-8 w-8 items-center justify-center rounded-full text-[14px] opacity-75 transition-all duration-300 hover:bg-white/10 hover:opacity-100" aria-label="Forward 10 seconds">
               ⏩
             </button>
+          </div>
 
-            <div className="flex items-center gap-2">
-              <button onClick={toggleMute} className="text-[14px] opacity-80 transition hover:opacity-100" aria-label="Mute">
+          {/* time */}
+          <span className="font-mono text-[10.5px] tracking-[0.03em] text-muted">
+            {formatTime(current)} / {formatTime(duration)}
+          </span>
+
+          {/* right cluster */}
+          <div className="flex items-center gap-1 sm:gap-3">
+            <div className="hidden items-center gap-2 sm:flex">
+              <button onClick={toggleMute} className="flex h-8 w-8 items-center justify-center rounded-full text-[13px] opacity-75 transition-all duration-300 hover:bg-white/10 hover:opacity-100" aria-label="Mute">
                 {muted || volume === 0 ? "🔇" : "🔊"}
               </button>
               <input
@@ -376,24 +388,28 @@ export default function VideoPlayer({
                 aria-label="Volume"
               />
             </div>
+            <button onClick={toggleMute} className="flex h-8 w-8 items-center justify-center rounded-full text-[13px] opacity-75 transition hover:bg-white/10 hover:opacity-100 sm:hidden" aria-label="Mute">
+              {muted || volume === 0 ? "🔇" : "🔊"}
+            </button>
 
-            <span className="font-mono text-[10.5px] tracking-[0.05em] text-muted">
-              {formatTime(current)} / {formatTime(duration)}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {nextHref && (
-              <a href={nextHref} className="font-mono text-[10px] tracking-[0.12em] text-marquee transition hover:opacity-70">
-                NEXT →
-              </a>
-            )}
-            <button onClick={toggleFullscreen} className="text-[14px] opacity-80 transition hover:opacity-100" aria-label="Fullscreen">
+            <button onClick={toggleFullscreen} className="flex h-8 w-8 items-center justify-center rounded-full text-[13px] opacity-75 transition-all duration-300 hover:bg-white/10 hover:opacity-100" aria-label="Fullscreen">
               ⛶
             </button>
           </div>
         </div>
       </div>
+
+      {/* next-episode pill — floats top-right, out of the control bar */}
+      {nextHref && showControls && (
+        <a
+          href={nextHref}
+          className="absolute right-2 top-2 flex items-center gap-2 rounded-full border border-white/10 bg-ink/55 px-4 py-2 font-mono text-[10px] tracking-[0.14em] text-marquee backdrop-blur-2xl transition-all duration-500 hover:-translate-y-0.5 hover:bg-ink/75 sm:right-3 sm:top-3"
+          style={{ transitionTimingFunction: "var(--ease-cine)" }}
+        >
+          NEXT EPISODE
+          <span>→</span>
+        </a>
+      )}
     </div>
   );
 }
