@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import VideoPlayer from "@/components/VideoPlayer";
+import { useVoiceChat } from "@/components/useVoiceChat";
 
 export default function PartyPage() {
   const { id: partyId } = useParams();
@@ -15,12 +16,19 @@ export default function PartyPage() {
   const [party, setParty] = useState(null);
   const [src, setSrc] = useState(null);
   const [members, setMembers] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [voiceOn, setVoiceOn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const videoRef = useRef(null);
+  const chatEndRef = useRef(null);
+  const applyingRemote = useRef(false);
+
   const isHost = party && me && party.host_id === me.id;
-  const applyingRemote = useRef(false); // stops echo loops
+
+  const voice = useVoiceChat(partyId, me?.id, voiceOn && Boolean(me));
 
   // ── load everything ──
   useEffect(() => {
@@ -112,7 +120,7 @@ export default function PartyPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [party?.id, me?.id]);
+  }, [party?.id, me?.id, isHost]);
 
   // ── presence: who's in the room ──
   useEffect(() => {
@@ -141,6 +149,44 @@ export default function PartyPage() {
     };
   }, [me?.id, partyId]);
 
+  // ── chat: load history + live updates ──
+  useEffect(() => {
+    if (!me) return;
+
+    supabase
+      .from("party_messages")
+      .select("id, user_id, username, body, created_at")
+      .eq("party_id", partyId)
+      .order("created_at")
+      .limit(100)
+      .then(({ data }) => setMessages(data || []));
+
+    const channel = supabase
+      .channel(`chat:${partyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "party_messages",
+          filter: `party_id=eq.${partyId}`,
+        },
+        (payload) => {
+          setMessages((prev) => [...prev, payload.new]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [me?.id, partyId]);
+
+  // keep chat scrolled to newest
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
   // ── apply the host's state to our video ──
   function applyRemoteState(state) {
     const video = videoRef.current;
@@ -148,7 +194,6 @@ export default function PartyPage() {
 
     applyingRemote.current = true;
 
-    // Match position if we've drifted more than 1.5s.
     if (Math.abs(video.currentTime - state.position_seconds) > 1.5) {
       video.currentTime = state.position_seconds;
     }
@@ -180,14 +225,16 @@ export default function PartyPage() {
     [isHost, partyId]
   );
 
-  const handleReady = useCallback((video) => {
-    videoRef.current = video;
-    // Guests jump to the host's current position on join.
-    if (party && party.host_id !== me?.id) {
-      if (party.position_seconds > 2) video.currentTime = party.position_seconds;
-      if (party.is_playing) video.play().catch(() => {});
-    }
-  }, [party, me?.id]);
+  const handleReady = useCallback(
+    (video) => {
+      videoRef.current = video;
+      if (party && party.host_id !== me?.id) {
+        if (party.position_seconds > 2) video.currentTime = party.position_seconds;
+        if (party.is_playing) video.play().catch(() => {});
+      }
+    },
+    [party, me?.id]
+  );
 
   const handlePlayState = useCallback(
     (isPlaying, position) => {
@@ -204,6 +251,20 @@ export default function PartyPage() {
     },
     [pushState, party?.is_playing]
   );
+
+  async function sendMessage(e) {
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body || !me) return;
+
+    setDraft("");
+    await supabase.from("party_messages").insert({
+      party_id: partyId,
+      user_id: me.id,
+      username: me.username,
+      body,
+    });
+  }
 
   async function endParty() {
     if (isHost) {
@@ -282,24 +343,107 @@ export default function PartyPage() {
         </div>
 
         {/* room */}
-        <aside className="rounded-[8px] border border-line">
+        <aside className="flex max-h-[70vh] flex-col rounded-[8px] border border-line lg:max-h-[calc(100vh-140px)]">
           <div className="border-b border-line px-4 py-3 font-mono text-[10px] tracking-[0.2em] text-muted">
             IN THE ROOM · {members.length}
           </div>
-          <div className="flex flex-col gap-3 p-4">
-            {members.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 text-[13px]">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2A3341] text-[11px]">
-                  {(m.username || "?").charAt(0).toUpperCase()}
-                </span>
-                <span>{m.username}</span>
-                {m.id === party.host_id && (
-                  <span className="ml-auto font-mono text-[9px] tracking-[0.12em] text-marquee">
-                    HOST
-                  </span>
-                )}
-              </div>
-            ))}
+
+          <div className="border-b border-line">
+            {/* voice controls */}
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="font-mono text-[10px] tracking-[0.2em] text-muted">
+                VOICE
+              </span>
+              {voiceOn ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={voice.toggleMute}
+                    className={`rounded-[4px] border px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] transition-all duration-300 ${
+                      voice.muted
+                        ? "border-alert text-alert"
+                        : "border-marquee text-marquee"
+                    }`}
+                  >
+                    {voice.muted ? "🔇 MUTED" : "🎙 LIVE"}
+                  </button>
+                  <button
+                    onClick={() => setVoiceOn(false)}
+                    className="rounded-[4px] border border-line-strong px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] text-muted transition-colors hover:text-text"
+                  >
+                    LEAVE
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setVoiceOn(true)}
+                  className="rounded-[4px] bg-marquee px-3.5 py-1.5 font-mono text-[10px] font-semibold tracking-[0.1em] text-marquee-ink transition-all duration-300 hover:-translate-y-0.5"
+                  style={{ transitionTimingFunction: "var(--ease-cine)" }}
+                >
+                  JOIN VOICE
+                </button>
+              )}
+            </div>
+
+            {/* members */}
+            <div className="flex flex-col gap-3 px-4 pb-4">
+              {members.map((m) => {
+                const isMe = m.id === me?.id;
+                const isSpeaking = isMe
+                  ? voiceOn && !voice.muted
+                  : voice.speakingPeers[m.id];
+
+                return (
+                  <div key={m.id} className="flex items-center gap-3 text-[13px]">
+                    <span
+                      className={`relative flex h-7 w-7 items-center justify-center rounded-full bg-[#2A3341] text-[11px] transition-shadow duration-200 ${
+                        isSpeaking ? "shadow-[0_0_0_2px_var(--color-marquee)]" : ""
+                      }`}
+                    >
+                      {(m.username || "?").charAt(0).toUpperCase()}
+                    </span>
+                    <span>
+                      {m.username}
+                      {isMe ? " (you)" : ""}
+                    </span>
+                    {m.id === party.host_id && (
+                      <span className="ml-auto font-mono text-[9px] tracking-[0.12em] text-marquee">
+                        HOST
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* chat */}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex-1 space-y-3 overflow-y-auto p-4">
+              {messages.length === 0 && (
+                <p className="font-mono text-[10px] tracking-[0.1em] text-faint">
+                  NO MESSAGES YET
+                </p>
+              )}
+              {messages.map((msg) => (
+                <div key={msg.id}>
+                  <div className="font-mono text-[9px] tracking-[0.1em] text-muted">
+                    {msg.username?.toUpperCase()}
+                  </div>
+                  <div className="mt-0.5 text-[13px] leading-snug">{msg.body}</div>
+                </div>
+              ))}
+              <div ref={chatEndRef} />
+            </div>
+
+            <form onSubmit={sendMessage} className="border-t border-line p-3">
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Say something…"
+                maxLength={500}
+                className="w-full rounded-[4px] bg-raised px-3 py-2 text-[13px] outline-none transition-colors placeholder:text-faint focus:ring-1 focus:ring-marquee"
+              />
+            </form>
           </div>
         </aside>
       </div>
