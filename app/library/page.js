@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import LibrarySearch from "@/components/LibrarySearch";
 
 const FILTERS = [
   { key: "all", label: "ALL" },
@@ -83,6 +84,9 @@ export default async function LibraryPage({ searchParams }) {
             {all.length} TITLE{all.length === 1 ? "" : "S"}
           </span>
         </div>
+
+        {/* search */}
+        <LibrarySearch />
 
         {/* filters */}
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import StartPartyButton from "@/components/StartPartyButton";
+import FavoriteButton from "@/components/FavoriteButton";
 
 function runtime(mins) {
   if (!mins) return null;
@@ -81,6 +82,16 @@ export default async function TitlePage({ params, searchParams }) {
     if (row.episode_id) progressByEpisode[row.episode_id] = row;
     else filmProgress = row;
   }
+
+  // is this title favorited?
+  const { data: favRow } = await supabase
+    .from("favorites")
+    .select("title_id")
+    .eq("user_id", user.id)
+    .eq("title_id", id)
+    .maybeSingle();
+
+  const isFavorited = Boolean(favRow);
 
   function percent(row) {
     if (!row?.duration_seconds) return 0;
@@ -226,6 +237,8 @@ export default async function TitlePage({ params, searchParams }) {
                     episodeId={isFilm ? null : playable.id}
                   />
                 )}
+
+                <FavoriteButton titleId={title.id} initialFavorited={isFavorited} />
 
                 <Link
                   href="/library"
