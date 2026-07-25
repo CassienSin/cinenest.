@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Hls from "hls.js";
+import { Play, Pause, Rewind, FastForward, Volume2, VolumeX, Maximize, ArrowRight } from "lucide-react";
 
 function formatTime(seconds) {
   if (!seconds || Number.isNaN(seconds)) return "0:00";
@@ -312,12 +313,7 @@ export default function VideoPlayer({
           className="absolute inset-0 flex items-center justify-center"
           aria-label="Play"
         >
-          <span
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-marquee text-[22px] text-marquee-ink shadow-[0_10px_40px_-8px_rgba(229,168,61,0.7)] transition-transform duration-500 hover:scale-105"
-            style={{ transitionTimingFunction: "var(--ease-cine)" }}
-          >
-            ▶
-          </span>
+          <Play size={26} fill="currentColor" strokeWidth={0} className="ml-1" />
         </button>
       )}
 
@@ -351,18 +347,19 @@ export default function VideoPlayer({
           />
         </div>
 
+        
         {/* buttons */}
         <div className="flex items-center justify-between gap-2">
           {/* left cluster */}
           <div className="flex items-center gap-1 sm:gap-3">
-            <button onClick={() => skip(-10)} className="flex h-8 w-8 items-center justify-center rounded-full text-[14px] opacity-75 transition-all duration-300 hover:bg-white/10 hover:opacity-100" aria-label="Back 10 seconds">
-              ⏪
+            <button onClick={() => skip(-10)} className="flex h-8 w-8 items-center justify-center rounded-full text-text/75 transition-all duration-300 hover:bg-white/10 hover:text-text" aria-label="Back 10 seconds">
+              <Rewind size={17} fill="currentColor" strokeWidth={0} />
             </button>
-            <button onClick={togglePlay} className="flex h-9 w-9 items-center justify-center rounded-full bg-marquee text-[16px] text-marquee-ink transition-transform duration-300 hover:scale-105" style={{ transitionTimingFunction: "var(--ease-cine)" }} aria-label={playing ? "Pause" : "Play"}>
-              {playing ? "⏸" : "▶"}
+            <button onClick={togglePlay} className="flex h-9 w-9 items-center justify-center rounded-full bg-marquee text-marquee-ink transition-transform duration-300 hover:scale-105" style={{ transitionTimingFunction: "var(--ease-cine)" }} aria-label={playing ? "Pause" : "Play"}>
+              {playing ? <Pause size={16} fill="currentColor" strokeWidth={0} /> : <Play size={16} fill="currentColor" strokeWidth={0} className="ml-0.5" />}
             </button>
-            <button onClick={() => skip(10)} className="flex h-8 w-8 items-center justify-center rounded-full text-[14px] opacity-75 transition-all duration-300 hover:bg-white/10 hover:opacity-100" aria-label="Forward 10 seconds">
-              ⏩
+            <button onClick={() => skip(10)} className="flex h-8 w-8 items-center justify-center rounded-full text-text/75 transition-all duration-300 hover:bg-white/10 hover:text-text" aria-label="Forward 10 seconds">
+              <FastForward size={17} fill="currentColor" strokeWidth={0} />
             </button>
           </div>
 
@@ -374,8 +371,8 @@ export default function VideoPlayer({
           {/* right cluster */}
           <div className="flex items-center gap-1 sm:gap-3">
             <div className="hidden items-center gap-2 sm:flex">
-              <button onClick={toggleMute} className="flex h-8 w-8 items-center justify-center rounded-full text-[13px] opacity-75 transition-all duration-300 hover:bg-white/10 hover:opacity-100" aria-label="Mute">
-                {muted || volume === 0 ? "🔇" : "🔊"}
+              <button onClick={toggleMute} className="flex h-8 w-8 items-center justify-center rounded-full text-text/75 transition-all duration-300 hover:bg-white/10 hover:text-text" aria-label="Mute">
+                {muted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
               </button>
               <input
                 type="range"
@@ -388,12 +385,12 @@ export default function VideoPlayer({
                 aria-label="Volume"
               />
             </div>
-            <button onClick={toggleMute} className="flex h-8 w-8 items-center justify-center rounded-full text-[13px] opacity-75 transition hover:bg-white/10 hover:opacity-100 sm:hidden" aria-label="Mute">
-              {muted || volume === 0 ? "🔇" : "🔊"}
+            <button onClick={toggleMute} className="flex h-8 w-8 items-center justify-center rounded-full text-text/75 transition hover:bg-white/10 hover:text-text sm:hidden" aria-label="Mute">
+              {muted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
             </button>
 
-            <button onClick={toggleFullscreen} className="flex h-8 w-8 items-center justify-center rounded-full text-[13px] opacity-75 transition-all duration-300 hover:bg-white/10 hover:opacity-100" aria-label="Fullscreen">
-              ⛶
+            <button onClick={toggleFullscreen} className="flex h-8 w-8 items-center justify-center rounded-full text-text/75 transition-all duration-300 hover:bg-white/10 hover:text-text" aria-label="Fullscreen">
+              <Maximize size={15} />
             </button>
           </div>
         </div>
@@ -407,7 +404,7 @@ export default function VideoPlayer({
           style={{ transitionTimingFunction: "var(--ease-cine)" }}
         >
           NEXT EPISODE
-          <span>→</span>
+          <ArrowRight size={13} />
         </a>
       )}
     </div>
