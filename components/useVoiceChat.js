@@ -54,6 +54,7 @@ export function useVoiceChat(partyId, myId, enabled) {
       if (!el) {
         el = new Audio();
         el.autoplay = true;
+        el.volume = 0.75; // slightly below max so it's not blaring
         audioEls.current[peerId] = el;
       }
       el.srcObject = event.streams[0];
@@ -147,7 +148,9 @@ export function useVoiceChat(partyId, myId, enabled) {
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
-            autoGainControl: true,
+            autoGainControl: false, // Discord keeps this off — prevents over-boosting
+            channelCount: 1, // mono, like voice chat should be
+            sampleRate: 48000,
           },
           video: false,
         });
