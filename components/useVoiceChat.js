@@ -13,6 +13,7 @@ const ICE_SERVERS = [
 export function useVoiceChat(partyId, myId, enabled) {
   const [connected, setConnected] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [noMic, setNoMic] = useState(false);
   const [speakingPeers, setSpeakingPeers] = useState({}); // { peerId: true }
 
   const localStream = useRef(null);
@@ -22,61 +23,63 @@ export function useVoiceChat(partyId, myId, enabled) {
   const analysers = useRef({}); // for speaking detection
 
   // ── create a peer connection to one other person ──
-  const createPeer = useCallback(
-    (peerId, isInitiator) => {
-      if (peers.current[peerId]) return peers.current[peerId];
+  const createPeer = useCallback((peerId, isInitiator) => {
+    if (peers.current[peerId]) return peers.current[peerId];
 
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-      peers.current[peerId] = pc;
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    peers.current[peerId] = pc;
 
-      // Send our mic audio to them.
-      if (localStream.current) {
-        localStream.current.getTracks().forEach((track) => {
-          pc.addTrack(track, localStream.current);
-        });
+    // Send our mic audio to them (if we have a mic).
+    if (localStream.current) {
+      localStream.current.getTracks().forEach((track) => {
+        pc.addTrack(track, localStream.current);
+      });
+    }
+
+    // If we have no mic, still ask to receive their audio.
+    if (!localStream.current) {
+      pc.addTransceiver("audio", { direction: "recvonly" });
+    }
+
+    // When our network figures out a route, tell the peer about it.
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        signaling.current?.sendIce(peerId, event.candidate);
       }
+    };
 
-      // When our network figures out a route, tell the peer about it.
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          signaling.current?.sendIce(peerId, event.candidate);
-        }
-      };
-
-      // When their audio arrives, play it through a hidden <audio> element.
-      pc.ontrack = (event) => {
-        let el = audioEls.current[peerId];
-        if (!el) {
-          el = new Audio();
-          el.autoplay = true;
-          audioEls.current[peerId] = el;
-        }
-        el.srcObject = event.streams[0];
-        el.play().catch(() => {});
-
-        // Watch their audio level to light up a "speaking" indicator.
-        setupSpeakingDetection(peerId, event.streams[0]);
-      };
-
-      // If the connection drops, clean it up.
-      pc.onconnectionstatechange = () => {
-        if (["failed", "closed", "disconnected"].includes(pc.connectionState)) {
-          removePeer(peerId);
-        }
-      };
-
-      // The initiator makes the first offer.
-      if (isInitiator) {
-        pc.createOffer()
-          .then((offer) => pc.setLocalDescription(offer))
-          .then(() => signaling.current?.sendOffer(peerId, pc.localDescription))
-          .catch(() => {});
+    // When their audio arrives, play it through a hidden <audio> element.
+    pc.ontrack = (event) => {
+      let el = audioEls.current[peerId];
+      if (!el) {
+        el = new Audio();
+        el.autoplay = true;
+        audioEls.current[peerId] = el;
       }
+      el.srcObject = event.streams[0];
+      el.play().catch(() => {});
 
-      return pc;
-    },
-    []
-  );
+      // Watch their audio level to light up a "speaking" indicator.
+      setupSpeakingDetection(peerId, event.streams[0]);
+    };
+
+    // If the connection drops, clean it up.
+    pc.onconnectionstatechange = () => {
+      if (["failed", "closed", "disconnected"].includes(pc.connectionState)) {
+        removePeer(peerId);
+      }
+    };
+
+    // The initiator makes the first offer.
+    if (isInitiator) {
+      pc.createOffer()
+        .then((offer) => pc.setLocalDescription(offer))
+        .then(() => signaling.current?.sendOffer(peerId, pc.localDescription))
+        .catch(() => {});
+    }
+
+    return pc;
+  }, []);
 
   // ── detect when a peer is talking (for the amber ring) ──
   function setupSpeakingDetection(peerId, stream) {
@@ -137,8 +140,8 @@ export function useVoiceChat(partyId, myId, enabled) {
     let cancelled = false;
 
     async function start() {
-      // 1. Ask for the mic.
-      let stream;
+      // 1. Try for the mic — but continue as a listener if there isn't one.
+      let stream = null;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -149,17 +152,18 @@ export function useVoiceChat(partyId, myId, enabled) {
           video: false,
         });
       } catch {
-        // User denied mic or none available.
-        return;
+        // No mic, or permission denied — join listen-only.
+        stream = null;
       }
 
       if (cancelled) {
-        stream.getTracks().forEach((t) => t.stop());
+        stream?.getTracks().forEach((t) => t.stop());
         return;
       }
 
-      localStream.current = stream;
+      localStream.current = stream; // may be null (listen-only)
       setConnected(true);
+      setNoMic(!stream);
 
       // 2. Open the signaling channel.
       signaling.current = createSignaling(partyId, myId, {
@@ -206,6 +210,7 @@ export function useVoiceChat(partyId, myId, enabled) {
       localStream.current = null;
 
       setConnected(false);
+      setNoMic(false);
       setSpeakingPeers({});
     };
   }, [enabled, partyId, myId, createPeer]);
@@ -213,7 +218,7 @@ export function useVoiceChat(partyId, myId, enabled) {
   // ── mute / unmute ──
   const toggleMute = useCallback(() => {
     const stream = localStream.current;
-    if (!stream) return;
+    if (!stream) return; // listen-only, nothing to mute
     const track = stream.getAudioTracks()[0];
     if (track) {
       track.enabled = !track.enabled;
@@ -221,5 +226,5 @@ export function useVoiceChat(partyId, myId, enabled) {
     }
   }, []);
 
-  return { connected, muted, speakingPeers, toggleMute };
+  return { connected, muted, noMic, speakingPeers, toggleMute };
 }
