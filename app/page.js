@@ -85,12 +85,12 @@ export default async function HomePage() {
           <Link href="/library" className="border-r border-line px-5 py-3.5 text-muted transition-colors hover:text-text">
             library
           </Link>
-          <div className="flex items-center justify-between px-5 py-3.5 text-muted">
+          <Link href="/profile" className="flex items-center justify-between px-5 py-3.5 text-muted transition-colors hover:text-text">
             {profile?.username}
             <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#2A3341] text-[10px] text-text">
               {name.charAt(0).toUpperCase()}
             </span>
-          </div>
+          </Link>
         </nav>
 
         {/* hero */}

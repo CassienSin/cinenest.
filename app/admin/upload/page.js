@@ -85,19 +85,20 @@ export default function UploadPage() {
       async function worker() {
         while (queue.length) {
           const file = queue.shift();
-          const contentType = file.name.endsWith(".m3u8")
-            ? "application/vnd.apple.mpegurl"
-            : "video/mp2t";
 
-          const { error: upErr } = await supabase.storage
-            .from(BUCKET)
-            .upload(`${folder}/${file.name}`, file, {
-              upsert: true,
-              contentType,
-              cacheControl: "3600",
-            });
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("key", `${folder}/${file.name}`);
 
-          if (upErr) throw new Error(`${file.name}: ${upErr.message}`);
+          const res = await fetch("/api/r2/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(`${file.name}: ${data.error || "upload failed"}`);
+          }
 
           completed += 1;
           setDone(completed);
@@ -106,12 +107,8 @@ export default function UploadPage() {
 
       await Promise.all([worker(), worker(), worker(), worker()]);
 
-      // public URL of the manifest
-      const { data: pub } = supabase.storage
-        .from(BUCKET)
-        .getPublicUrl(`${folder}/playlist.m3u8`);
-
-      const videoUrl = pub.publicUrl;
+      // public URL of the manifest on R2
+      const videoUrl = `${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${folder}/playlist.m3u8`;
 
       // attach it
       const { error: dbErr } = isFilm
