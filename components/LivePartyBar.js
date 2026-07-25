@@ -35,10 +35,11 @@ export default function LivePartyBar({ meId }) {
     };
   }, []);
 
-  // hide parties you're already hosting
+  // your own party (host) vs everyone else's
+  const mine = parties.find((p) => p.host_id === meId);
   const others = parties.filter((p) => p.host_id !== meId);
 
-  if (others.length === 0) {
+  if (!mine && others.length === 0) {
     return (
       <div className="flex items-center gap-3 border-b border-line px-5 py-3.5">
         <span className="cn-dot" style={{ background: "var(--color-faint)" }} />
@@ -49,6 +50,30 @@ export default function LivePartyBar({ meId }) {
 
   return (
     <div className="border-b border-line">
+      {/* your own active party — rejoin */}
+      {mine && (
+        <button
+          onClick={() => router.push(`/party/${mine.id}`)}
+          className="group flex w-full items-center justify-between border-b border-line px-5 py-3.5 text-left transition-colors duration-400 hover:bg-white/[0.022]"
+        >
+          <div className="flex items-center gap-3">
+            <span className="cn-dot" />
+            <span className="text-[13px]">
+              <span className="text-muted">Your party is still live · </span>
+              <span className="text-marquee">{mine.title_name}</span>
+              {mine.episode_number ? (
+                <span className="text-muted">
+                  {" "}· E{String(mine.episode_number).padStart(2, "0")}
+                </span>
+              ) : null}
+            </span>
+          </div>
+          <span className="font-mono text-[10px] tracking-[0.12em] text-marquee transition-transform duration-300 group-hover:translate-x-1">
+            REJOIN →
+          </span>
+        </button>
+      )}
+
       {others.map((p) => (
         <button
           key={p.id}
