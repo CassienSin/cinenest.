@@ -76,6 +76,10 @@ export default function VideoPlayer({
     const video = videoRef.current;
     if (!video || !src) return;
 
+    // If this exact source is already loaded, don't rebuild the player.
+    if (video.dataset.loadedSrc === src) return;
+    video.dataset.loadedSrc = src;
+
     let hls;
 
     const onLoaded = () => {

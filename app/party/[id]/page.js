@@ -113,9 +113,16 @@ export default function PartyPage() {
         (payload) => {
           const next = payload.new;
 
-          // Did the episode change? Everyone (including host) reloads the source.
           setParty((prev) => {
-            if (prev && next.episode_id !== prev.episode_id) {
+            // Only touch the video source if the episode genuinely changed
+            // to a DIFFERENT, valid episode. Never on a play/pause/seek update.
+            const episodeChanged =
+              prev &&
+              next.episode_id &&
+              prev.episode_id &&
+              next.episode_id !== prev.episode_id;
+
+            if (episodeChanged) {
               const ep = episodes.find((e) => e.id === next.episode_id);
               if (ep?.video_url) setSrc(ep.video_url);
             }
