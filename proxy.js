@@ -25,22 +25,26 @@ export default async function proxy(request) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT locally when possible — far faster than
+  // getUser(), which makes a network round trip on every navigation.
+  let isLoggedIn = false;
+  try {
+    const { data } = await supabase.auth.getClaims();
+    isLoggedIn = Boolean(data?.claims);
+  } catch {
+    isLoggedIn = false;
+  }
 
   const path = request.nextUrl.pathname;
   const isLogin = path.startsWith("/login");
 
-  // Not logged in and not on the login page? Go to login.
-  if (!user && !isLogin) {
+  if (!isLoggedIn && !isLogin) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // Already logged in but sitting on the login page? Go home.
-  if (user && isLogin) {
+  if (isLoggedIn && isLogin) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
