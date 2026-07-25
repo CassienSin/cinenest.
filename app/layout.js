@@ -1,5 +1,7 @@
 import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import ServiceWorker from "@/components/ServiceWorker";
+import InstallPrompt from "@/components/InstallPrompt";
 
 const instrument = Instrument_Sans({
   subsets: ["latin"],
@@ -16,12 +18,26 @@ const jetbrains = JetBrains_Mono({
 export const metadata = {
   title: "CineNest",
   description: "A private cinema for the barkada.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "CineNest",
+  },
+};
+
+export const viewport = {
+  themeColor: "#0f1216",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${instrument.variable} ${jetbrains.variable}`}>
-      <body className="bg-ink text-text">{children}</body>
+      <body className="bg-ink text-text">
+        <ServiceWorker />
+        <InstallPrompt />
+        {children}
+      </body>
     </html>
   );
 }
