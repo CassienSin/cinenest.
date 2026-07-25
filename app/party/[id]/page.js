@@ -225,6 +225,25 @@ export default function PartyPage() {
     [isHost, partyId]
   );
 
+  // ── heartbeat: keep the party "alive" while the host is watching ──
+  useEffect(() => {
+    if (!isHost) return;
+
+    const interval = setInterval(() => {
+      const video = videoRef.current;
+      // Only bump if the video actually exists and is playing.
+      if (video && !video.paused && !video.ended) {
+        supabase
+          .from("parties")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", partyId)
+          .then(() => {});
+      }
+    }, 120000); // every 2 minutes
+
+    return () => clearInterval(interval);
+  }, [isHost, partyId]);
+
   const handleReady = useCallback(
     (video) => {
       videoRef.current = video;
