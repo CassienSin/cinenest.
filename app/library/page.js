@@ -44,7 +44,7 @@ export default async function LibraryPage({ searchParams }) {
   let query = supabase
     .from("titles")
     .select(
-      "id, name, kind, year, poster_url, backdrop_url, runtime_minutes, genres, episodes(count)"
+      "id, name, kind, year, poster_url, backdrop_url, logo_url, runtime_minutes, genres, episodes(count)"
     )
     .order("created_at", { ascending: false });
 
@@ -69,12 +69,12 @@ export default async function LibraryPage({ searchParams }) {
             home
           </Link>
           <div className="border-r border-line px-5 py-3.5">library</div>
-          <div className="flex items-center justify-between px-5 py-3.5 text-muted">
+          <Link href="/profile" className="flex items-center justify-between px-5 py-3.5 text-muted transition-colors hover:text-text">
             {profile?.username}
             <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#2A3341] text-[10px] text-text">
               {(profile?.username || "?").charAt(0).toUpperCase()}
             </span>
-          </div>
+          </Link>
         </nav>
 
         {/* header */}
@@ -155,9 +155,19 @@ export default async function LibraryPage({ searchParams }) {
                   </div>
 
                   <div className="cn-pane-detail absolute bottom-4 left-4 right-4">
-                    <div className="whitespace-nowrap text-[19px] font-semibold leading-tight tracking-[-0.5px]">
-                      {t.name}
-                    </div>
+                    {t.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={t.logo_url}
+                        alt={t.name}
+                        className="max-h-[58px] w-auto max-w-[230px] object-contain object-left"
+                        style={{ filter: "drop-shadow(0 4px 14px rgba(0,0,0,0.85))" }}
+                      />
+                    ) : (
+                      <div className="whitespace-nowrap text-[19px] font-semibold leading-tight tracking-[-0.5px]">
+                        {t.name}
+                      </div>
+                    )}
                     <div className="mt-1.5 whitespace-nowrap font-mono text-[10px] text-muted">
                       {metaLine(t)}
                     </div>

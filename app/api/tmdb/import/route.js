@@ -76,6 +76,7 @@ export async function POST(request) {
           logo_url: logoPath ? `${IMG}/w500${logoPath}` : null,
           genres: (movie.genres || []).map((g) => g.name),
           runtime_minutes: movie.runtime || null,
+          rating: movie.vote_average ? Math.round(movie.vote_average * 10) / 10 : null,
           tmdb_id: movie.id,
           added_by: user.id,
         })
@@ -110,6 +111,7 @@ export async function POST(request) {
         backdrop_url: show.backdrop_path ? `${IMG}/w1280${show.backdrop_path}` : null,
         logo_url: showLogoPath ? `${IMG}/w500${showLogoPath}` : null,
         genres: (show.genres || []).map((g) => g.name),
+        rating: show.vote_average ? Math.round(show.vote_average * 10) / 10 : null,
         tmdb_id: show.id,
         added_by: user.id,
       })
