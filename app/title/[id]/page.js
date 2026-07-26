@@ -154,25 +154,6 @@ export default async function TitlePage({ params, searchParams }) {
             )}
 
             <div className="relative px-5 pb-8 pt-28 sm:px-7 md:px-10 md:pb-11">
-              {/* eyebrow */}
-              <div className="cn-rise flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[10.5px] tracking-[0.2em] text-muted">
-                <span>{(title.kind || "title").toUpperCase()}</span>
-                {title.year && (
-                  <>
-                    <span className="text-faint">/</span>
-                    <span>{title.year}</span>
-                  </>
-                )}
-                {ratingLabel && (
-                  <>
-                    <span className="text-faint">/</span>
-                    <span className="flex items-center gap-1 text-marquee">
-                      <span className="text-[11px] leading-none">★</span>
-                      {ratingLabel}
-                    </span>
-                  </>
-                )}
-              </div>
 
               {/* the wordmark — this is the whole point of the redesign */}
               {title.logo_url ? (
@@ -206,6 +187,29 @@ export default async function TitlePage({ params, searchParams }) {
                   {title.original_name}
                 </div>
               )}
+
+              {/* eyebrow — now sits under the wordmark */}
+              <div
+                className="cn-rise mt-3.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[10.5px] tracking-[0.2em] text-muted"
+                style={{ animationDelay: "0.2s" }}
+              >
+                <span>{(title.kind || "title").toUpperCase()}</span>
+                {title.year && (
+                  <>
+                    <span className="text-faint">/</span>
+                    <span>{title.year}</span>
+                  </>
+                )}
+                {ratingLabel && (
+                  <>
+                    <span className="text-faint">/</span>
+                    <span className="flex items-center gap-1 text-marquee">
+                      <span className="text-[11px] leading-none">★</span>
+                      {ratingLabel}
+                    </span>
+                  </>
+                )}
+              </div>
 
               {/* meta */}
               <div
