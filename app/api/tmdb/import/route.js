@@ -57,7 +57,11 @@ export async function POST(request) {
 
   try {
     if (mediaType === "movie") {
-      const movie = await tmdb(`/movie/${tmdbId}`);
+      const movie = await tmdb(
+        `/movie/${tmdbId}?append_to_response=images&include_image_language=en,null`
+      );
+
+      const logoPath = movie.images?.logos?.[0]?.file_path || null;
 
       const { data: inserted, error } = await supabase
         .from("titles")
@@ -69,6 +73,7 @@ export async function POST(request) {
           synopsis: movie.overview || null,
           poster_url: movie.poster_path ? `${IMG}/w500${movie.poster_path}` : null,
           backdrop_url: movie.backdrop_path ? `${IMG}/w1280${movie.backdrop_path}` : null,
+          logo_url: logoPath ? `${IMG}/w500${logoPath}` : null,
           genres: (movie.genres || []).map((g) => g.name),
           runtime_minutes: movie.runtime || null,
           tmdb_id: movie.id,
@@ -87,7 +92,11 @@ export async function POST(request) {
     }
 
     // ── TV / anime ──
-    const show = await tmdb(`/tv/${tmdbId}`);
+    const show = await tmdb(
+      `/tv/${tmdbId}?append_to_response=images&include_image_language=en,null`
+    );
+
+    const showLogoPath = show.images?.logos?.[0]?.file_path || null;
 
     const { data: title, error: titleError } = await supabase
       .from("titles")
@@ -99,6 +108,7 @@ export async function POST(request) {
         synopsis: show.overview || null,
         poster_url: show.poster_path ? `${IMG}/w500${show.poster_path}` : null,
         backdrop_url: show.backdrop_path ? `${IMG}/w1280${show.backdrop_path}` : null,
+        logo_url: showLogoPath ? `${IMG}/w500${showLogoPath}` : null,
         genres: (show.genres || []).map((g) => g.name),
         tmdb_id: show.id,
         added_by: user.id,

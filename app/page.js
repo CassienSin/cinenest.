@@ -7,6 +7,7 @@ import LivePartyBar from "@/components/LivePartyBar";
 function timeLeft(position, duration) {
   if (!duration) return null;
   const left = Math.max(0, duration - position);
+  if (left < 60) return "ALMOST DONE";
   const h = Math.floor(left / 3600);
   const m = Math.round((left % 3600) / 60);
   return h ? `${h}H ${m}M LEFT` : `${m} MIN LEFT`;
@@ -31,7 +32,7 @@ export default async function HomePage() {
   const { data: progressRows } = await supabase
     .from("watch_progress")
     .select(
-      "position_seconds, duration_seconds, updated_at, titles(id, name, kind, year, poster_url, backdrop_url), episodes(id, episode_number, name, still_url)"
+      "position_seconds, duration_seconds, updated_at, titles(id, name, kind, year, poster_url, backdrop_url, logo_url, rating), episodes(id, episode_number, name, still_url)"
     )
     .eq("user_id", user.id)
     .eq("completed", false)
@@ -44,7 +45,7 @@ export default async function HomePage() {
   // newest in the library
   const { data: recent } = await supabase
     .from("titles")
-    .select("id, name, kind, year, poster_url, backdrop_url")
+    .select("id, name, kind, year, poster_url, backdrop_url, logo_url, rating")
     .order("created_at", { ascending: false })
     .limit(12);
 
@@ -54,11 +55,26 @@ export default async function HomePage() {
   const heroProgress = continueList[0] || null;
   const hero = heroProgress?.titles || recentList[0] || null;
 
+  // If there's progress, always go to the player — episode if it's a series,
+  // the film itself otherwise. Only fall back to the details page when there's
+  // nothing to resume.
   const heroHref = hero
-    ? heroProgress?.episodes
-      ? `/watch/${hero.id}?ep=${heroProgress.episodes.id}`
+    ? heroProgress
+      ? heroProgress.episodes
+        ? `/watch/${hero.id}?ep=${heroProgress.episodes.id}`
+        : `/watch/${hero.id}`
       : `/title/${hero.id}`
     : null;
+
+  const heroImage = hero ? hero.backdrop_url || hero.poster_url || null : null;
+
+  const heroRating =
+    typeof hero?.rating === "number" && hero.rating > 0 ? hero.rating.toFixed(1) : null;
+
+  const heroPct =
+    heroProgress?.duration_seconds
+      ? Math.min(100, (heroProgress.position_seconds / heroProgress.duration_seconds) * 100)
+      : 0;
 
   async function signOut() {
     "use server";
@@ -93,77 +109,133 @@ export default async function HomePage() {
           </Link>
         </nav>
 
-        {/* hero */}
+        {/* ── hero: framed backdrop, content anchored bottom-left ── */}
         {hero ? (
-          <section className="relative border-b border-line">
-            {hero.backdrop_url && (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={hero.backdrop_url}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover opacity-25"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/85 to-ink/50" />
-              </>
-            )}
+          <section className="px-3 pt-3 md:px-4 md:pt-4">
+            <div className="relative flex min-h-[380px] flex-col justify-end overflow-hidden rounded-[10px] border border-line sm:min-h-[440px] md:min-h-[520px] lg:min-h-[580px]">
+              {heroImage ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={heroImage}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover object-[center_22%]"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/55 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-ink/85 via-ink/25 to-transparent" />
+                </>
+              ) : (
+                <div className="absolute inset-0 bg-raised" />
+              )}
 
-            <div className="relative px-5 py-12 md:py-16">
-              <div className="cn-rise font-mono text-[11px] tracking-[0.2em] text-muted">
-                001 — {heroProgress ? "CONTINUE WATCHING" : "NOW SHOWING"}
-              </div>
+              <div className="relative px-5 pb-8 pt-28 sm:px-7 md:px-10 md:pb-11">
+                <div className="cn-rise font-mono text-[10.5px] tracking-[0.2em] text-muted">
+                  001 — {heroProgress ? "CONTINUE WATCHING" : "NOW SHOWING"}
+                </div>
 
-              <h1
-                className="cn-rise mt-3 max-w-2xl text-[34px] font-semibold leading-[1.05] tracking-[-1.2px] md:text-[40px]"
-                style={{ animationDelay: "0.1s" }}
-              >
-                {hero.name}
-              </h1>
+                {hero.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={hero.logo_url}
+                    alt={hero.name}
+                    className="cn-rise mt-4 h-auto max-h-[88px] w-auto max-w-[270px] object-contain object-left sm:max-h-[104px] sm:max-w-[330px] md:mt-5 md:max-h-[130px] md:max-w-[430px]"
+                    style={{
+                      animationDelay: "0.1s",
+                      filter: "drop-shadow(0 6px 24px rgba(0,0,0,0.85))",
+                    }}
+                  />
+                ) : (
+                  <h1
+                    className="cn-rise mt-3 max-w-3xl text-[32px] font-semibold leading-[1.04] tracking-[-1.2px] md:text-[44px]"
+                    style={{
+                      animationDelay: "0.1s",
+                      textShadow: "0 4px 22px rgba(0,0,0,0.8)",
+                    }}
+                  >
+                    {hero.name}
+                  </h1>
+                )}
 
-              <div
-                className="cn-rise mt-3 font-mono text-[11px] tracking-[0.1em] text-muted"
-                style={{ animationDelay: "0.18s" }}
-              >
-                {heroProgress?.episodes
-                  ? `E${String(heroProgress.episodes.episode_number).padStart(2, "0")} · `
-                  : ""}
-                {hero.kind.toUpperCase()}
-                {hero.year ? ` · ${hero.year}` : ""}
-                {heroProgress
-                  ? ` · ${timeLeft(heroProgress.position_seconds, heroProgress.duration_seconds) || ""}`
-                  : ""}
-              </div>
-
-              <div
-                className="cn-rise mt-7 flex flex-wrap items-center gap-3"
-                style={{ animationDelay: "0.26s" }}
-              >
-                <Link
-                  href={heroHref}
-                  className="rounded-[4px] bg-marquee px-5 py-3 text-[13px] font-semibold text-marquee-ink transition-all duration-500 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-8px_rgba(229,168,61,0.55)]"
-                  style={{ transitionTimingFunction: "var(--ease-cine)" }}
+                <div
+                  className="cn-rise mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 font-mono text-[10px] tracking-[0.1em] text-muted"
+                  style={{ animationDelay: "0.18s" }}
                 >
-                  ▶ {heroProgress ? "Resume" : "Open"}
-                </Link>
-                <Link
-                  href={`/title/${hero.id}`}
-                  className="rounded-[4px] border border-line-strong px-5 py-3 text-[13px] transition-all duration-500 hover:-translate-y-0.5 hover:border-muted hover:bg-white/[0.03]"
-                  style={{ transitionTimingFunction: "var(--ease-cine)" }}
+                  {heroProgress?.episodes && (
+                    <>
+                      <span className="text-text">
+                        E{String(heroProgress.episodes.episode_number).padStart(2, "0")}
+                      </span>
+                      <span className="text-faint">/</span>
+                    </>
+                  )}
+                  <span>{(hero.kind || "title").toUpperCase()}</span>
+                  {hero.year && (
+                    <>
+                      <span className="text-faint">/</span>
+                      <span>{hero.year}</span>
+                    </>
+                  )}
+                  {heroRating && (
+                    <>
+                      <span className="text-faint">/</span>
+                      <span className="flex items-center gap-1 text-marquee">
+                        <span className="text-[11px] leading-none">★</span>
+                        {heroRating}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* how far you got — the reason this title is the hero */}
+                {heroProgress && heroPct > 0 && (
+                  <div className="cn-rise mt-5 max-w-xs" style={{ animationDelay: "0.22s" }}>
+                    <div className="h-[2px] bg-white/20">
+                      <div className="h-[2px] bg-marquee" style={{ width: `${heroPct}%` }} />
+                    </div>
+                    <div className="mt-2 font-mono text-[10px] tracking-[0.12em] text-muted">
+                      {timeLeft(heroProgress.position_seconds, heroProgress.duration_seconds) ||
+                        "IN PROGRESS"}
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  className="cn-rise mt-7 flex flex-wrap items-center gap-2.5"
+                  style={{ animationDelay: "0.26s" }}
                 >
-                  Details
-                </Link>
+                  <Link
+                    href={heroHref}
+                    className="rounded-full bg-marquee px-6 py-3 text-[13px] font-semibold text-marquee-ink transition-all duration-500 hover:-translate-y-0.5 hover:shadow-[0_12px_34px_-8px_rgba(229,168,61,0.6)]"
+                    style={{ transitionTimingFunction: "var(--ease-cine)" }}
+                  >
+                    ▶ {heroProgress ? "Resume" : "Play"}
+                  </Link>
+                  <Link
+                    href={`/title/${hero.id}`}
+                    className="rounded-full border border-white/15 bg-white/[0.06] px-5 py-3 text-[13px] backdrop-blur-md transition-all duration-500 hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.12]"
+                    style={{ transitionTimingFunction: "var(--ease-cine)" }}
+                  >
+                    Details
+                  </Link>
+                </div>
               </div>
             </div>
           </section>
         ) : (
-          <section className="border-b border-line px-5 py-16 text-center">
+          <section className="border-b border-line px-5 py-20 text-center">
             <div className="font-mono text-[11px] tracking-[0.2em] text-muted">
               THE NEST IS EMPTY
             </div>
+            <p className="mx-auto mt-3 max-w-sm text-[13px] leading-relaxed text-faint">
+              {profile?.is_admin
+                ? "Import a film or series from TMDB and it'll show up here."
+                : "Nothing's been added yet. Check back once your admin stocks the library."}
+            </p>
             {profile?.is_admin && (
               <Link
                 href="/admin/add"
-                className="mt-5 inline-block rounded-[4px] bg-marquee px-5 py-3 text-[13px] font-semibold text-marquee-ink"
+                className="mt-6 inline-block rounded-full bg-marquee px-6 py-3 text-[13px] font-semibold text-marquee-ink transition-all duration-500 hover:-translate-y-0.5"
+                style={{ transitionTimingFunction: "var(--ease-cine)" }}
               >
                 Add your first title
               </Link>
@@ -177,29 +249,29 @@ export default async function HomePage() {
         {/* continue watching */}
         {continueList.length > 0 && (
           <section className="border-b border-line">
-            <div className="px-5 py-4 text-[14px] font-medium">Continue watching</div>
+            <div className="px-5 pb-4 pt-7 text-[14px] font-medium">Continue watching</div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 border-t border-line sm:grid-cols-2 lg:grid-cols-3">
               {continueList.map((row, i) => {
                 const t = row.titles;
                 const ep = row.episodes;
                 const pct = row.duration_seconds
                   ? Math.min(100, (row.position_seconds / row.duration_seconds) * 100)
                   : 0;
-                const still = ep?.still_url || t.backdrop_url;
+                const still = ep?.still_url || t.backdrop_url || t.poster_url;
 
                 return (
                   <Link
                     key={`${t.id}-${ep?.id || "film"}`}
                     href={ep ? `/watch/${t.id}?ep=${ep.id}` : `/watch/${t.id}`}
-                    className="cn-card cn-rise border-b border-r border-line p-4 transition-colors duration-400 hover:bg-white/[0.022]"
+                    className="cn-card cn-rise group border-b border-r border-line p-4 transition-colors duration-400 hover:bg-white/[0.022]"
                     style={{ animationDelay: `${i * 0.06}s` }}
                   >
                     <div className="font-mono text-[10px] text-faint">
                       {String(i + 2).padStart(3, "0")}
                     </div>
 
-                    <div className="mt-2 aspect-video overflow-hidden rounded-[4px] bg-raised">
+                    <div className="relative mt-2 aspect-video overflow-hidden rounded-[4px] bg-raised">
                       {still ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={still} alt="" className="cn-card-img h-full w-full object-cover" />
@@ -208,6 +280,13 @@ export default async function HomePage() {
                           NO STILL
                         </div>
                       )}
+
+                      {/* resume affordance, on hover */}
+                      <div className="absolute inset-0 flex items-center justify-center bg-ink/45 opacity-0 transition-opacity duration-400 group-hover:opacity-100">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-marquee text-[15px] text-marquee-ink">
+                          ▶
+                        </span>
+                      </div>
                     </div>
 
                     <div className="mt-0.5 h-[2px] bg-line">
@@ -229,38 +308,50 @@ export default async function HomePage() {
         {/* recently added */}
         {recentList.length > 0 && (
           <section>
-            <div className="flex items-baseline justify-between px-5 py-4">
+            <div className="flex items-baseline justify-between px-5 pb-4 pt-7">
               <span className="text-[14px] font-medium">Recently added</span>
               <Link href="/library" className="font-mono text-[10px] tracking-[0.12em] text-marquee transition-opacity hover:opacity-70">
                 SEE ALL →
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
-              {recentList.map((t, i) => (
-                <Link
-                  key={t.id}
-                  href={`/title/${t.id}`}
-                  className="cn-card cn-rise border-b border-r border-line p-4"
-                  style={{ animationDelay: `${Math.min(i, 10) * 0.04}s` }}
-                >
-                  <div className="mb-3 aspect-[2/3] overflow-hidden rounded-[4px] bg-raised">
-                    {t.poster_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.poster_url} alt={t.name} className="cn-card-img h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center font-mono text-[10px] text-faint">
-                        NO POSTER
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-[13px] font-medium leading-tight">{t.name}</div>
-                  <div className="mt-1 font-mono text-[10px] text-muted">
-                    {t.kind.toUpperCase()}
-                    {t.year ? ` · ${t.year}` : ""}
-                  </div>
-                </Link>
-              ))}
+            <div className="grid grid-cols-2 border-t border-line sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
+              {recentList.map((t, i) => {
+                const cardRating =
+                  typeof t.rating === "number" && t.rating > 0 ? t.rating.toFixed(1) : null;
+
+                return (
+                  <Link
+                    key={t.id}
+                    href={`/title/${t.id}`}
+                    className="cn-card cn-rise border-b border-r border-line p-4"
+                    style={{ animationDelay: `${Math.min(i, 10) * 0.04}s` }}
+                  >
+                    <div className="relative mb-3 aspect-[2/3] overflow-hidden rounded-[4px] bg-raised">
+                      {t.poster_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={t.poster_url} alt={t.name} className="cn-card-img h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center font-mono text-[10px] text-faint">
+                          NO POSTER
+                        </div>
+                      )}
+
+                      {cardRating && (
+                        <span className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-full bg-ink/75 px-2 py-1 font-mono text-[9.5px] tracking-[0.06em] text-marquee backdrop-blur-md">
+                          <span className="text-[10px] leading-none">★</span>
+                          {cardRating}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[13px] font-medium leading-tight">{t.name}</div>
+                    <div className="mt-1 font-mono text-[10px] text-muted">
+                      {(t.kind || "title").toUpperCase()}
+                      {t.year ? ` · ${t.year}` : ""}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </section>
         )}

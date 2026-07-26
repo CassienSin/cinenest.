@@ -100,6 +100,15 @@ export default async function TitlePage({ params, searchParams }) {
 
   const playable = isFilm ? title.video_url : episodes.find((e) => e.video_url);
 
+  // Backdrop is the whole hero now — fall back to the poster so the frame is
+  // never an empty box on titles TMDB has no backdrop for.
+  const heroImage = title.backdrop_url || title.poster_url || null;
+
+  const ratingLabel =
+    typeof title.rating === "number" && title.rating > 0
+      ? title.rating.toFixed(1)
+      : null;
+
   return (
     <main className="relative min-h-screen overflow-hidden">
       <div className="cn-grain" />
@@ -116,7 +125,7 @@ export default async function TitlePage({ params, searchParams }) {
           <Link href="/library" className="border-r border-line px-5 py-3.5 text-muted transition-colors hover:text-text">
             library
           </Link>
-          <div className="flex items-center justify-between px-5 py-3.5 text-muted">
+          <Link href="/profile" className="flex items-center justify-between px-5 py-3.5 text-muted transition-colors hover:text-text">
             {profile?.username}
             <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#2A3341] text-[10px] text-text">
               {(profile?.username || "?").charAt(0).toUpperCase()}
@@ -124,58 +133,81 @@ export default async function TitlePage({ params, searchParams }) {
           </div>
         </nav>
 
-        {/* hero */}
-        <section className="relative border-b border-line">
-          {title.backdrop_url && (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={title.backdrop_url}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover opacity-30"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/85 to-ink/40" />
-            </>
-          )}
+        {/* ── hero: framed backdrop, content anchored bottom-left ── */}
+        <section className="px-3 pt-3 md:px-4 md:pt-4">
+          <div className="relative flex min-h-[400px] flex-col justify-end overflow-hidden rounded-[10px] border border-line sm:min-h-[460px] md:min-h-[560px] lg:min-h-[620px]">
+            {heroImage ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={heroImage}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover object-[center_22%]"
+                />
+                {/* vertical scrim — grounds the text, fades the frame into the page */}
+                <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/55 to-transparent" />
+                {/* horizontal scrim — keeps the logo readable over busy artwork */}
+                <div className="absolute inset-0 bg-gradient-to-r from-ink/85 via-ink/25 to-transparent" />
+              </>
+            ) : (
+              <div className="absolute inset-0 bg-raised" />
+            )}
 
-          <div className="relative flex flex-col gap-7 px-5 py-10 md:flex-row md:py-14">
-            {/* poster */}
-            <div className="w-[150px] shrink-0 md:w-[190px]">
-              <div className="aspect-[2/3] overflow-hidden rounded-[6px] bg-raised shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)]">
-                {title.poster_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={title.poster_url} alt={title.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center font-mono text-[10px] text-faint">
-                    NO POSTER
-                  </div>
+            <div className="relative px-5 pb-8 pt-28 sm:px-7 md:px-10 md:pb-11">
+              {/* eyebrow */}
+              <div className="cn-rise flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[10.5px] tracking-[0.2em] text-muted">
+                <span>{(title.kind || "title").toUpperCase()}</span>
+                {title.year && (
+                  <>
+                    <span className="text-faint">/</span>
+                    <span>{title.year}</span>
+                  </>
+                )}
+                {ratingLabel && (
+                  <>
+                    <span className="text-faint">/</span>
+                    <span className="flex items-center gap-1 text-marquee">
+                      <span className="text-[11px] leading-none">★</span>
+                      {ratingLabel}
+                    </span>
+                  </>
                 )}
               </div>
-            </div>
 
-            {/* info */}
-            <div className="min-w-0 flex-1">
-              <div className="cn-rise font-mono text-[11px] tracking-[0.2em] text-muted">
-                {title.kind.toUpperCase()}
-                {title.year ? ` — ${title.year}` : ""}
-              </div>
-
-              <h1
-                className="cn-rise mt-3 text-[30px] font-semibold leading-[1.06] tracking-[-1px] md:text-[38px]"
-                style={{ animationDelay: "0.1s" }}
-              >
-                {title.name}
-              </h1>
+              {/* the wordmark — this is the whole point of the redesign */}
+              {title.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={title.logo_url}
+                  alt={title.name}
+                  className="cn-rise mt-4 h-auto max-h-[92px] w-auto max-w-[280px] object-contain object-left sm:max-h-[110px] sm:max-w-[340px] md:mt-5 md:max-h-[140px] md:max-w-[460px]"
+                  style={{
+                    animationDelay: "0.1s",
+                    filter: "drop-shadow(0 6px 24px rgba(0,0,0,0.85))",
+                  }}
+                />
+              ) : (
+                <h1
+                  className="cn-rise mt-3 max-w-3xl text-[32px] font-semibold leading-[1.04] tracking-[-1.2px] md:text-[46px]"
+                  style={{
+                    animationDelay: "0.1s",
+                    textShadow: "0 4px 22px rgba(0,0,0,0.8)",
+                  }}
+                >
+                  {title.name}
+                </h1>
+              )}
 
               {title.original_name && title.original_name !== title.name && (
                 <div
-                  className="cn-rise mt-1.5 text-[13px] text-muted"
+                  className="cn-rise mt-2.5 text-[13px] text-muted"
                   style={{ animationDelay: "0.16s" }}
                 >
                   {title.original_name}
                 </div>
               )}
 
+              {/* meta */}
               <div
                 className="cn-rise mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[10px] tracking-[0.1em] text-muted"
                 style={{ animationDelay: "0.22s" }}
@@ -188,7 +220,10 @@ export default async function TitlePage({ params, searchParams }) {
                       </span>
                     )}
                 {(title.genres || []).slice(0, 4).map((g) => (
-                  <span key={g} className="rounded-full border border-line px-2.5 py-1">
+                  <span
+                    key={g}
+                    className="rounded-full border border-white/15 bg-white/[0.06] px-2.5 py-1 backdrop-blur-md"
+                  >
                     {g.toUpperCase()}
                   </span>
                 ))}
@@ -196,7 +231,7 @@ export default async function TitlePage({ params, searchParams }) {
 
               {title.synopsis && (
                 <p
-                  className="cn-rise mt-5 max-w-2xl text-[13.5px] leading-relaxed text-muted"
+                  className="cn-rise mt-5 line-clamp-3 max-w-2xl text-[13.5px] leading-relaxed text-muted"
                   style={{ animationDelay: "0.28s" }}
                 >
                   {title.synopsis}
@@ -205,28 +240,31 @@ export default async function TitlePage({ params, searchParams }) {
 
               {/* film progress */}
               {isFilm && filmProgress && percent(filmProgress) > 0 && (
-                <div className="cn-rise mt-6 max-w-sm" style={{ animationDelay: "0.32s" }}>
-                  <div className="h-[2px] bg-line">
+                <div className="cn-rise mt-6 max-w-xs" style={{ animationDelay: "0.32s" }}>
+                  <div className="h-[2px] bg-white/20">
                     <div className="h-[2px] bg-marquee" style={{ width: `${percent(filmProgress)}%` }} />
                   </div>
-                  <div className="mt-2 font-mono text-[10px] text-muted">
+                  <div className="mt-2 font-mono text-[10px] tracking-[0.12em] text-muted">
                     {Math.round(percent(filmProgress))}% WATCHED
                   </div>
                 </div>
               )}
 
-              {/* actions */}
-              <div className="cn-rise mt-7 flex flex-wrap items-center gap-3" style={{ animationDelay: "0.36s" }}>
+              {/* actions — pills */}
+              <div
+                className="cn-rise mt-7 flex flex-wrap items-center gap-2.5"
+                style={{ animationDelay: "0.36s" }}
+              >
                 {playable ? (
                   <Link
                     href={isFilm ? `/watch/${title.id}` : `/watch/${title.id}?ep=${playable.id}`}
-                    className="rounded-[4px] bg-marquee px-5 py-3 text-[13px] font-semibold text-marquee-ink transition-all duration-500 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-8px_rgba(229,168,61,0.55)]"
+                    className="rounded-full bg-marquee px-6 py-3 text-[13px] font-semibold text-marquee-ink transition-all duration-500 hover:-translate-y-0.5 hover:shadow-[0_12px_34px_-8px_rgba(229,168,61,0.6)]"
                     style={{ transitionTimingFunction: "var(--ease-cine)" }}
                   >
                     ▶ Play
                   </Link>
                 ) : (
-                  <span className="rounded-[4px] border border-line px-5 py-3 font-mono text-[11px] tracking-[0.12em] text-faint">
+                  <span className="rounded-full border border-white/15 bg-white/[0.06] px-5 py-3 font-mono text-[11px] tracking-[0.12em] text-faint backdrop-blur-md">
                     NO VIDEO UPLOADED YET
                   </span>
                 )}
@@ -242,10 +280,10 @@ export default async function TitlePage({ params, searchParams }) {
 
                 <Link
                   href="/library"
-                  className="rounded-[4px] border border-line-strong px-5 py-3 text-[13px] transition-all duration-500 hover:-translate-y-0.5 hover:border-muted hover:bg-white/[0.03]"
+                  className="rounded-full border border-white/15 bg-white/[0.06] px-5 py-3 text-[13px] backdrop-blur-md transition-all duration-500 hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.12]"
                   style={{ transitionTimingFunction: "var(--ease-cine)" }}
                 >
-                  ← Back to library
+                  ← Library
                 </Link>
               </div>
             </div>
@@ -256,7 +294,7 @@ export default async function TitlePage({ params, searchParams }) {
         {!isFilm && (
           <>
             {seasons.length > 1 && (
-              <div className="flex flex-wrap gap-2 border-b border-line px-5 py-3">
+              <div className="flex flex-wrap gap-2 px-5 pb-1 pt-7">
                 {seasons.map((s) => (
                   <Link
                     key={s.id}
@@ -273,7 +311,7 @@ export default async function TitlePage({ params, searchParams }) {
               </div>
             )}
 
-            <div className="flex items-baseline justify-between border-b border-line px-5 py-4">
+            <div className="flex items-baseline justify-between border-b border-line px-5 pb-4 pt-6">
               <span className="text-[14px] font-medium">
                 {activeSeason?.name || `Season ${activeSeason?.season_number}`}
               </span>
@@ -345,7 +383,7 @@ export default async function TitlePage({ params, searchParams }) {
                       {ep.video_url ? (
                         <Link
                           href={`/watch/${title.id}?ep=${ep.id}`}
-                          className="rounded-[4px] bg-marquee px-4 py-2 text-[12px] font-semibold text-marquee-ink opacity-0 transition-all duration-400 group-hover:opacity-100"
+                          className="rounded-full bg-marquee px-4 py-2 text-[12px] font-semibold text-marquee-ink opacity-0 transition-all duration-400 group-hover:opacity-100"
                           style={{ transitionTimingFunction: "var(--ease-cine)" }}
                         >
                           ▶
