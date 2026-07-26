@@ -130,7 +130,7 @@ export default async function TitlePage({ params, searchParams }) {
             <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#2A3341] text-[10px] text-text">
               {(profile?.username || "?").charAt(0).toUpperCase()}
             </span>
-          </div>
+          </Link>
         </nav>
 
         {/* ── hero: framed backdrop, content anchored bottom-left ── */}
