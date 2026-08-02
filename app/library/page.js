@@ -38,7 +38,7 @@ export default async function LibraryPage({ searchParams }) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username, avatar_url, is_admin")
+    .select("username, display_name, avatar_url, is_admin")
     .eq("id", user.id)
     .single();
 
@@ -71,7 +71,7 @@ export default async function LibraryPage({ searchParams }) {
           </Link>
           <div className="border-r border-line px-5 py-3.5">library</div>
           <Link href="/profile" className="flex items-center justify-between px-5 py-3.5 text-muted transition-colors hover:text-text">
-            {profile?.username}
+            {profile?.display_name || profile?.username}
             <UserAvatar avatarUrl={profile?.avatar_url} username={profile?.username} />
           </Link>
         </nav>

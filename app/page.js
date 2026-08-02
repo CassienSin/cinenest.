@@ -103,7 +103,7 @@ export default async function HomePage() {
             library
           </Link>
           <Link href="/profile" className="flex items-center justify-between px-5 py-3.5 text-muted transition-colors hover:text-text">
-            {profile?.username}
+            {profile?.display_name || profile?.username}
             <UserAvatar avatarUrl={profile?.avatar_url} username={profile?.username} />
           </Link>
         </nav>

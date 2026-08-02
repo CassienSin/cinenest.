@@ -48,7 +48,7 @@ export default function PartyPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("id, username, avatar_url")
+        .select("id, username, display_name, avatar_url")
         .eq("id", user.id)
         .single();
 
@@ -170,7 +170,7 @@ export default function PartyPage() {
         if (status === "SUBSCRIBED") {
           await presence.track({
             id: me.id,
-            username: me.username,
+            username: me.display_name || me.username,
             avatar_url: me.avatar_url,
           });
         }
@@ -312,7 +312,7 @@ export default function PartyPage() {
     await supabase.from("party_messages").insert({
       party_id: partyId,
       user_id: me.id,
-      username: me.username,
+      username: me.display_name || me.username,
       body,
     });
   }
