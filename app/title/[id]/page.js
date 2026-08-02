@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import StartPartyButton from "@/components/StartPartyButton";
 import FavoriteButton from "@/components/FavoriteButton";
+import UserAvatar from "@/components/UserAvatar";
 
 function runtime(mins) {
   if (!mins) return null;
@@ -25,7 +26,7 @@ export default async function TitlePage({ params, searchParams }) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username")
+    .select("username, avatar_url")
     .eq("id", user.id)
     .single();
 
@@ -127,9 +128,7 @@ export default async function TitlePage({ params, searchParams }) {
           </Link>
           <Link href="/profile" className="flex items-center justify-between px-5 py-3.5 text-muted transition-colors hover:text-text">
             {profile?.username}
-            <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#2A3341] text-[10px] text-text">
-              {(profile?.username || "?").charAt(0).toUpperCase()}
-            </span>
+            <UserAvatar avatarUrl={profile?.avatar_url} username={profile?.username} />
           </Link>
         </nav>
 

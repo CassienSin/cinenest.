@@ -48,7 +48,7 @@ export default function PartyPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("id, username")
+        .select("id, username, avatar_url")
         .eq("id", user.id)
         .single();
 
@@ -163,12 +163,16 @@ export default function PartyPage() {
         const state = presence.presenceState();
         const people = Object.values(state)
           .flat()
-          .map((p) => ({ id: p.id, username: p.username }));
+          .map((p) => ({ id: p.id, username: p.username, avatar_url: p.avatar_url }));
         setMembers(people);
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await presence.track({ id: me.id, username: me.username });
+          await presence.track({
+            id: me.id,
+            username: me.username,
+            avatar_url: me.avatar_url,
+          });
         }
       });
 
@@ -505,11 +509,16 @@ export default function PartyPage() {
                 return (
                   <div key={m.id} className="flex items-center gap-3 text-[13px]">
                     <span
-                      className={`relative flex h-7 w-7 items-center justify-center rounded-full bg-[#2A3341] text-[11px] transition-shadow duration-200 ${
+                      className={`relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-[#2A3341] text-[11px] transition-shadow duration-200 ${
                         isSpeaking ? "shadow-[0_0_0_2px_var(--color-marquee)]" : ""
                       }`}
                     >
-                      {(m.username || "?").charAt(0).toUpperCase()}
+                      {m.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={m.avatar_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        (m.username || "?").charAt(0).toUpperCase()
+                      )}
                     </span>
                     <span>
                       {m.username}

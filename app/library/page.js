@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import LibrarySearch from "@/components/LibrarySearch";
+import UserAvatar from "@/components/UserAvatar";
 
 const FILTERS = [
   { key: "all", label: "ALL" },
@@ -37,7 +38,7 @@ export default async function LibraryPage({ searchParams }) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username, is_admin")
+    .select("username, avatar_url, is_admin")
     .eq("id", user.id)
     .single();
 
@@ -71,9 +72,7 @@ export default async function LibraryPage({ searchParams }) {
           <div className="border-r border-line px-5 py-3.5">library</div>
           <Link href="/profile" className="flex items-center justify-between px-5 py-3.5 text-muted transition-colors hover:text-text">
             {profile?.username}
-            <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#2A3341] text-[10px] text-text">
-              {(profile?.username || "?").charAt(0).toUpperCase()}
-            </span>
+            <UserAvatar avatarUrl={profile?.avatar_url} username={profile?.username} />
           </Link>
         </nav>
 

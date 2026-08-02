@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import LivePartyBar from "@/components/LivePartyBar";
+import UserAvatar from "@/components/UserAvatar";
 
 function timeLeft(position, duration) {
   if (!duration) return null;
@@ -24,7 +25,7 @@ export default async function HomePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username, display_name, is_admin")
+    .select("username, display_name, avatar_url, is_admin")
     .eq("id", user.id)
     .single();
 
@@ -103,9 +104,7 @@ export default async function HomePage() {
           </Link>
           <Link href="/profile" className="flex items-center justify-between px-5 py-3.5 text-muted transition-colors hover:text-text">
             {profile?.username}
-            <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#2A3341] text-[10px] text-text">
-              {name.charAt(0).toUpperCase()}
-            </span>
+            <UserAvatar avatarUrl={profile?.avatar_url} username={profile?.username} />
           </Link>
         </nav>
 
