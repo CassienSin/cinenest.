@@ -38,8 +38,8 @@ export async function POST() {
   // titles that have a tmdb_id but no logo yet
   const { data: titles } = await supabase
     .from("titles")
-    .select("id, kind, tmdb_id, rating")
-    .is("logo_url", null)
+    .select("id, kind, tmdb_id, rating, logo_url")
+    .or("logo_url.is.null,rating.is.null")
     .not("tmdb_id", "is", null);
 
   let updated = 0;

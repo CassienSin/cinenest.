@@ -13,9 +13,14 @@ const r2 = new S3Client({
 });
 
 const BUCKET = "cinenest";
+const ALLOWED = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+const MAX_BYTES = 5 * 1024 * 1024; // 5MB
 
 export async function POST(request) {
-  // Only signed-in members can request an upload URL.
   const supabase = await createClient();
   const {
     data: { user },
@@ -25,29 +30,36 @@ export async function POST(request) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
 
-  const { key, contentType } = await request.json();
+  const { contentType, size } = await request.json();
 
-  if (!key) {
-    return NextResponse.json({ error: "Missing key." }, { status: 400 });
+  const ext = ALLOWED[contentType];
+  if (!ext) {
+    return NextResponse.json(
+      { error: "Only JPG, PNG, or WEBP images are allowed." },
+      { status: 400 }
+    );
+  }
+  if (size && size > MAX_BYTES) {
+    return NextResponse.json({ error: "Image must be under 5MB." }, { status: 400 });
   }
 
-  const type =
-    contentType ||
-    (key.endsWith(".m3u8") ? "application/vnd.apple.mpegurl" : "video/mp2t");
+  // The key is derived from the user's own ID — never trust a client-supplied
+  // path here, or one member could overwrite another member's avatar.
+  const key = `avatars/${user.id}-${Date.now()}.${ext}`;
 
   try {
     const command = new PutObjectCommand({
       Bucket: BUCKET,
       Key: key,
-      ContentType: type,
+      ContentType: contentType,
     });
 
-    // Valid for 5 minutes — plenty of time for one file to upload.
     const uploadUrl = await getSignedUrl(r2, command, { expiresIn: 300 });
+    const publicUrl = `${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${key}`;
 
-    return NextResponse.json({ ok: true, uploadUrl, key });
+    return NextResponse.json({ ok: true, uploadUrl, publicUrl });
   } catch (err) {
-    console.error("Presign failed:", err);
+    console.error("Avatar presign failed:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

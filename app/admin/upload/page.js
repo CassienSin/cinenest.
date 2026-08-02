@@ -85,19 +85,34 @@ export default function UploadPage() {
       async function worker() {
         while (queue.length) {
           const file = queue.shift();
+          const key = `${folder}/${file.name}`;
+          const contentType = file.name.endsWith(".m3u8")
+            ? "application/vnd.apple.mpegurl"
+            : "video/mp2t";
 
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("key", `${folder}/${file.name}`);
-
-          const res = await fetch("/api/r2/upload", {
+          // 1. Ask our server for a signed URL (tiny request, no file bytes).
+          const presignRes = await fetch("/api/r2/upload", {
             method: "POST",
-            body: formData,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key, contentType }),
           });
 
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            throw new Error(`${file.name}: ${data.error || "upload failed"}`);
+          if (!presignRes.ok) {
+            const data = await presignRes.json().catch(() => ({}));
+            throw new Error(`${file.name}: ${data.error || "couldn't get upload URL"}`);
+          }
+
+          const { uploadUrl } = await presignRes.json();
+
+          // 2. Upload the actual file straight to R2 — never touches our server.
+          const putRes = await fetch(uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": contentType },
+            body: file,
+          });
+
+          if (!putRes.ok) {
+            throw new Error(`${file.name}: upload to R2 failed`);
           }
 
           completed += 1;
